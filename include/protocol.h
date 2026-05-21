@@ -19,4 +19,6 @@ struct MessageHeader {
 
 #define HEADER_SIZE sizeof(struct MessageHeader)
 
+uint16_t checksumCalculator(char *buffer, uint16_t lengthOfBytes);
+
 #endif
