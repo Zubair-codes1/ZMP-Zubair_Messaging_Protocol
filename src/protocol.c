@@ -16,3 +16,19 @@ uint16_t checksumCalculator(char *buffer, uint16_t lengthOfBytes) {
     return checksum;
 
 }
+
+// builds the message in a buffer and returns the size of the message
+uint16_t build_message(uint8_t messageType, uint16_t lengthOfBytes, char *payload, char *buffer) {
+    memcpy(buffer, &messageType, sizeof(uint8_t));
+
+    uint16_t checksum = 0x0000;
+
+    memcpy(buffer + 1, &checksum, sizeof(uint16_t));
+    memcpy(buffer + 3, &lengthOfBytes, sizeof(uint16_t));
+    memcpy(buffer + 5, payload, lengthOfBytes);
+
+    checksum =  checksumCalculator(buffer, HEADER_SIZE + lengthOfBytes);
+    memcpy(buffer + 1, &checksum, sizeof(uint16_t));
+
+    return HEADER_SIZE + lengthOfBytes;
+}
