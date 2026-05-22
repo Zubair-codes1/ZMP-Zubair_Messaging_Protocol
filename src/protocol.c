@@ -18,7 +18,7 @@ uint16_t checksumCalculator(char *buffer, uint16_t lengthOfBytes) {
 }
 
 // builds the message in a buffer and returns the size of the message
-uint16_t build_message(uint8_t messageType, uint16_t lengthOfBytes, char *payload, char *buffer) {
+uint16_t buildMessage(uint8_t messageType, uint16_t lengthOfBytes, char *payload, char *buffer) {
     memcpy(buffer, &messageType, sizeof(uint8_t));
 
     uint16_t checksum = 0x0000;
@@ -31,4 +31,35 @@ uint16_t build_message(uint8_t messageType, uint16_t lengthOfBytes, char *payloa
     memcpy(buffer + 1, &checksum, sizeof(uint16_t));
 
     return HEADER_SIZE + lengthOfBytes;
+}
+
+// parse message
+struct ParsedMessage parseMessage(char *buffer) {
+    uint8_t messageType;
+    memcpy(&messageType, buffer, sizeof(uint8_t));
+
+    uint16_t checksum;
+    memcpy(&checksum, buffer + 1, sizeof(uint16_t));
+    
+    uint16_t lengthOfBytes;
+    memcpy(&lengthOfBytes, buffer + 3, sizeof(uint16_t));
+
+    char *payload = buffer + 5;
+    
+    // temporary check sum to verify checksum
+    uint16_t tempChecksum = 0x0000;
+    memcpy(buffer + 1, &tempChecksum, sizeof(uint16_t));
+    tempChecksum = checksumCalculator(buffer, HEADER_SIZE + lengthOfBytes);
+
+    memcpy(buffer + 1, &checksum, sizeof(uint16_t));
+
+    bool checksumEqual = (tempChecksum == checksum);
+
+    struct ParsedMessage result;
+    result.messageType = messageType;
+    result.lengthOfMessage = lengthOfBytes;
+    result.payload = payload;
+    result.checksumEqual = checksumEqual;
+
+    return result;
 }
