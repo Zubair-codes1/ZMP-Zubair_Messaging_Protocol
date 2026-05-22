@@ -80,6 +80,7 @@ int initialiseServer() {
     return serverSocketFd;
 }
 
+// accepting, selecting and receiving messages
 void runServer(int serverSocketFd)
 {
     // setting up the fds to listen to
@@ -110,7 +111,23 @@ void runServer(int serverSocketFd)
 
         // accepting client requests
         if (FD_ISSET(serverSocketFd, &read_fds)) {
-            
+            struct sockaddr_in clientAddress;
+            socklen_t clientLen = sizeof(clientAddress);
+            int clientFd = accept(serverSocketFd, (struct sockaddr *)&clientAddress, &clientLen);
+
+            int freeSlot = -1;
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (!clients[i].isInUse) {
+                    freeSlot = i;
+                    break;
+                }
+            }
+
+            if (freeSlot == -1) {
+                close(clientFd);
+            }else {
+                clients[freeSlot].socketfd == clientFd;
+            }
         }
 
     }
