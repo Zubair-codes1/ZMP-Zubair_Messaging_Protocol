@@ -26,6 +26,8 @@ struct Client clients[MAX_CLIENTS];
 
 // forward declarations for initialiseServer and runServer
 int initialiseServer();
+void acceptRequests(int serverSocketFd, fd_set *readFds);
+void receiveAndSendRequests(fd_set *readFds);
 void runServer(int serverSocketFd);
 
 // main - puts together all the server code
@@ -85,15 +87,15 @@ void runServer(int serverSocketFd)
 {
     // setting up the fds to listen to
     while(1) {
-        fd_set read_fds;
-        FD_ZERO(&read_fds);  // clears the fd_set - all zeroes
-        FD_SET(serverSocketFd, &read_fds);  // adds the serverSocketFd
+        fd_set readFds;
+        FD_ZERO(&readFds);  // clears the fd_set - all zeroes
+        FD_SET(serverSocketFd, &readFds);  // adds the serverSocketFd
         
         int max_fd = serverSocketFd;
 
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (clients[i].isInUse) {
-                FD_SET(clients[i].socketfd, &read_fds);
+                FD_SET(clients[i].socketfd, &readFds);
 
                 if (clients[i].socketfd > max_fd) {
                     max_fd = clients[i].socketfd;
@@ -103,33 +105,90 @@ void runServer(int serverSocketFd)
         }
 
         // selects the first connection from which a message is being sent
-        int selectResult = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
+        int selectResult = select(max_fd + 1, &readFds, NULL, NULL, NULL);
         if (selectResult == -1) {
             perror("Selection failed!");
             exit(1);
         }
 
-        // accepting client requests
-        if (FD_ISSET(serverSocketFd, &read_fds)) {
-            struct sockaddr_in clientAddress;
-            socklen_t clientLen = sizeof(clientAddress);
-            int clientFd = accept(serverSocketFd, (struct sockaddr *)&clientAddress, &clientLen);
+        acceptRequests(serverSocketFd, &readFds);
 
-            int freeSlot = -1;
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (!clients[i].isInUse) {
-                    freeSlot = i;
-                    break;
-                }
-            }
+        receiveAndSendRequests(&readFds);
+    }
+    
+}
 
-            if (freeSlot == -1) {
-                close(clientFd);
-            }else {
-                clients[freeSlot].socketfd == clientFd;
+// accepting requests
+void acceptRequests(int serverSocketFd, fd_set *readFds) {
+    // accepting client requests
+    if (FD_ISSET(serverSocketFd, readFds)) {
+        struct sockaddr_in clientAddress;
+        socklen_t clientLen = sizeof(clientAddress);
+        int clientFd = accept(serverSocketFd, (struct sockaddr *)&clientAddress, &clientLen);
+
+        int freeSlot = -1;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (!clients[i].isInUse) {
+                freeSlot = i;
+                break;
             }
         }
 
+        if (freeSlot == -1) {
+            close(clientFd);
+        }else {
+            clients[freeSlot].socketfd = clientFd;
+            clients[freeSlot].isInUse = true;
+            clients[freeSlot].address = clientAddress;
+
+            char buffer[HEADER_SIZE];
+            uint16_t messageSize = buildMessage(ACK, 0, NULL, buffer);
+            send(clients[freeSlot].socketfd, buffer, messageSize, 0);
+        }
+    }
+}
+
+// handling requests based on type
+void receiveAndSendRequests(fd_set *readFds) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i].isInUse) {
+            if(FD_ISSET(clients[i].socketfd, readFds)){
+                char buffer[HEADER_SIZE + 65535];
+                int bytesReceived = recv(clients[i].socketfd, buffer, HEADER_SIZE, 0);
+
+                if (bytesReceived <= 0) {
+                    close(clients[i].socketfd);
+                    clients[i].isInUse = false;
+                }else {
+                    uint16_t lengthOfBytes;
+                    memcpy(&lengthOfBytes, buffer + 3, sizeof(uint16_t));
+
+                    int payloadBytes = recv(clients[i].socketfd, buffer + HEADER_SIZE, lengthOfBytes, 0);
+                    if (payloadBytes <= 0) {
+                        close(clients[i].socketfd);
+                        clients[i].isInUse = false;
+                        continue;
+                    }
+                    struct ParsedMessage parsedMessage = parseMessage(buffer);
+                    
+                    if (parsedMessage.checksumEqual) {
+                        if (parsedMessage.messageType == CONNECT) {
+                            memcpy(clients[i].username, buffer + HEADER_SIZE, lengthOfBytes);
+                        }else if (parsedMessage.messageType == MSG) {
+                            for (int j = 0; j < MAX_CLIENTS; j++) {
+                                if (clients[j].isInUse && j != i) {
+                                    send(clients[j].socketfd, buffer, HEADER_SIZE + lengthOfBytes, 0);
+                                }
+                            }
+                        }else if (parsedMessage.messageType == DISCONNECT) {
+                            close(clients[i].socketfd);
+                            clients[i].isInUse = false;
+                        }
+                    }
+
+                }
+            }
+        }
     }
     
 }
