@@ -84,8 +84,6 @@ void initialiseServer() {
         perror("Listening failed");
         exit(1);
     }
-
-    return serverSocketFd;
 }
 
 // accepting, selecting and receiving messages
@@ -211,6 +209,6 @@ void shutdownHandler(int sig) {
     }
 
     close(serverSocketFd);
-    printf("Server shut down.");
+    write(STDOUT_FILENO, "\nServer shut down.\n", 21);
     exit(1);
 }
