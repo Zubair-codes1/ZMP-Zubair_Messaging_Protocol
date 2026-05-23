@@ -1,5 +1,6 @@
 #include "protocol.h"
 #include <stddef.h>
+#include <string.h>
 
 uint16_t checksumCalculator(char *buffer, uint16_t lengthOfBytes) {
     uint8_t sum1 = 0;

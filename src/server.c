@@ -8,6 +8,7 @@
 #include "protocol.h"
 #include <stdlib.h>    // for exit()
 #include <stdio.h>     // for perror()
+#include <signal.h>
 
 // holds information about each client
 struct Client {
@@ -24,16 +25,21 @@ struct Client {
 // creating a list of client structs
 struct Client clients[MAX_CLIENTS];
 
-// forward declarations for initialiseServer and runServer
-int initialiseServer();
+// server socket
+int serverSocketFd;
+
+// forward declarations for functions
+void initialiseServer();
 void acceptRequests(int serverSocketFd, fd_set *readFds);
 void receiveAndSendRequests(fd_set *readFds);
+void shutdownHandler(int sig);
 void runServer(int serverSocketFd);
 
 // main - puts together all the server code
 int main () {
+    signal(SIGINT, shutdownHandler);
     memset(clients, 0, sizeof(clients));
-    int serverSocketFd = initialiseServer();
+    initialiseServer();
     runServer(serverSocketFd);
     return 0;
 }
@@ -42,8 +48,8 @@ int main () {
  * Initialises the server - binding to port and listening for clients
  * @author Zubair Abdul Matin
  */
-int initialiseServer() {
-    int serverSocketFd = socket(AF_INET, SOCK_STREAM, 0);
+void initialiseServer() {
+    serverSocketFd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (serverSocketFd == -1) {
         perror("Socket not created");
@@ -191,4 +197,20 @@ void receiveAndSendRequests(fd_set *readFds) {
         }
     }
     
+}
+
+void shutdownHandler(int sig) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i].isInUse) {
+            char buffer[HEADER_SIZE];
+            uint16_t messageSize = buildMessage(DISCONNECT, 0, NULL, buffer);
+
+            send(clients[i].socketfd, buffer, messageSize, 0);
+            close(clients[i].socketfd);
+        }
+    }
+
+    close(serverSocketFd);
+    printf("Server shut down.");
+    exit(1);
 }

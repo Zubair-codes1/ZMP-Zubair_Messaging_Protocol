@@ -109,7 +109,7 @@ int main (int argc, char *argv[]) {
             int length = recv(serverFd, buffer + HEADER_SIZE, lengthOfBytes, 0);
             struct ParsedMessage parsedMessage = parseMessage(buffer);
             if (parsedMessage.messageType == MSG) {
-                printf("%s\n", parsedMessage.payload);
+                printf("%.*s\n", parsedMessage.lengthOfMessage, parsedMessage.payload);
             }
 
         }
