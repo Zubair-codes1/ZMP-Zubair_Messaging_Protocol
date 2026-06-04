@@ -1,2 +1,3 @@
-# chat-protocol
-Making a chat protocol
+# **ZMP - Zubair Messaging Protocol**
+
+The ZMP is 
