@@ -8,7 +8,8 @@ The ZMP consists of the following features;
 1. Multiclient connections across a server over a command line interface (CLI).
 2. Acknowledgements between server and clients.
 3. Custom packet with a message type, message length, checksum and payload.
-4. Graceful server shut down
+4. Multiplexing to allow server to seemingly respond to multiple clients at once.
+5. Graceful server shut down
 
 ## **Requirements**
 
