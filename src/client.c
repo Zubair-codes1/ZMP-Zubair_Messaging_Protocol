@@ -89,6 +89,7 @@ int main (int argc, char *argv[]) {
 
             if (input[0] == '/') {
                 char *inputCopy = strdup(input);
+                char *inputCopyCopy = inputCopy;
                 char *messageType = strsep(&inputCopy, " ");
 
                 if (strcmp(messageType, "/join") == 0) {
@@ -96,15 +97,21 @@ int main (int argc, char *argv[]) {
                     joinValue = strsep(&inputCopy, " ");
 
                     messageLength = buildMessage(JOIN, (uint16_t) strlen(joinValue), joinValue, buffer);
+                    send(serverFd, buffer, messageLength, 0);
                 }else if (strcmp(messageType, "/create") == 0) {
                     messageLength = buildMessage(CREATE, 0, NULL, buffer);
+                    send(serverFd, buffer, messageLength, 0);
+                }else {
+                    printf("Error: Command starting with / does not exist.\n");
                 }
+
+                free(inputCopyCopy);
             }
             else {
                 messageLength = buildMessage(MSG, (uint16_t) strlen(input), input, buffer);
 
                 sendResult = send(serverFd, buffer, messageLength, 0);
-                
+
                 if (sendResult == -1) {
                     perror("Error when sending.");
                     exit(1);
@@ -124,10 +131,20 @@ int main (int argc, char *argv[]) {
             uint16_t lengthOfBytes;
             memcpy(&lengthOfBytes, buffer + 3, sizeof(uint16_t));
 
-            int length = recv(serverFd, buffer + HEADER_SIZE, lengthOfBytes, 0);
+            if (lengthOfBytes > 0) {
+                int length = recv(serverFd, buffer + HEADER_SIZE, lengthOfBytes, 0);
+            }
+
             struct ParsedMessage parsedMessage = parseMessage(buffer);
             if (parsedMessage.messageType == MSG) {
                 printf("%.*s\n", parsedMessage.lengthOfMessage, parsedMessage.payload);
+            }else if (parsedMessage.messageType == ACK) {
+                printf("Server: Request Succeeded!\n");
+            }else if (parsedMessage.messageType == ERROR) {
+                printf("%.*s\n", parsedMessage.lengthOfMessage, parsedMessage.payload);
+            }else if (parsedMessage.messageType == DISCONNECT) {
+                printf("Server: Server disconnected.\n");
+                exit(1);
             }
 
         }

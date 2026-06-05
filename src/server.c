@@ -234,12 +234,15 @@ void serverActions(int currentClient, char *buffer) {
     uint16_t lengthOfBytes;
     memcpy(&lengthOfBytes, buffer + 3, sizeof(uint16_t));
 
-    int payloadBytes = recv(clients[currentClient].socketfd, buffer + HEADER_SIZE, lengthOfBytes, 0);
-    if (payloadBytes <= 0) {
-        close(clients[currentClient].socketfd);
-        clients[currentClient].isInUse = false;
-        return;
+    if (lengthOfBytes > 0) {
+        int payloadBytes = recv(clients[currentClient].socketfd, buffer + HEADER_SIZE, lengthOfBytes, 0);
+        if (payloadBytes <= 0) {
+            close(clients[currentClient].socketfd);
+            clients[currentClient].isInUse = false;
+            return;
+        }
     }
+    
     struct ParsedMessage parsedMessage = parseMessage(buffer);
     
     if (parsedMessage.checksumEqual) {
@@ -293,7 +296,7 @@ void roomJoinHandler(int client, char *buffer) {
     uint8_t joinRoomID = (uint8_t) atoi(buffer + 5);
     int lengthOfBytes;
     char message[1024];
-    if (joinRoomID < MAX_ROOM_SIZE && joinRoomID > 0 && rooms[joinRoomID].isInUse == true) {
+    if (joinRoomID < MAX_ROOM_SIZE && rooms[joinRoomID].isInUse == true) {
         // moving client to new room
         clients[client].roomID = joinRoomID;
 
