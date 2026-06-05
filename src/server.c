@@ -11,19 +11,31 @@
 #include <signal.h>
 
 // holds information about each client
-struct Client {
+typedef struct {
     int socketfd;           // OS can return -1 hence regular int
     char username[16];      // 16 bytes for username
     bool isInUse;
+    int roomID;
     struct sockaddr_in address;
-};
+} Client ;
+
+// holds information about rooms
+typedef struct {
+    int roomID;
+    bool isInUse;
+    bool isEmpty;
+} Room;
 
 // max clients and backlog size constants
 #define MAX_CLIENTS 10
 #define BACKLOG_SIZE 10
 
-// creating a list of client structs
-struct Client clients[MAX_CLIENTS];
+// max room size
+#define MAX_ROOM_SIZE 10
+
+// list of clients and rooms
+Client clients[MAX_CLIENTS];
+Room rooms[MAX_ROOM_SIZE];
 
 // server socket
 int serverSocketFd;
@@ -32,13 +44,23 @@ int serverSocketFd;
 void initialiseServer();
 void acceptRequests(int serverSocketFd, fd_set *readFds);
 void receiveAndSendRequests(fd_set *readFds);
+void roomCreationHandler(int client);
 void shutdownHandler(int sig);
 void runServer(int serverSocketFd);
 
 // main - puts together all the server code
 int main () {
+    // handling server shut down
     signal(SIGINT, shutdownHandler);
+
+    // clearing clients and room structs
     memset(clients, 0, sizeof(clients));
+    memset(rooms, 0, sizeof(rooms));
+
+    // setting base room to in use
+    rooms[0].isInUse = true;
+
+    // initialsing and running the server
     initialiseServer();
     runServer(serverSocketFd);
     return 0;
@@ -184,6 +206,11 @@ void receiveAndSendRequests(fd_set *readFds) {
                                     send(clients[j].socketfd, buffer, HEADER_SIZE + lengthOfBytes, 0);
                                 }
                             }
+                        }else if (parsedMessage.messageType == JOIN) {
+                            
+                        }else if (parsedMessage.messageType == CREATE) {
+                            roomCreationHandler(i);
+
                         }else if (parsedMessage.messageType == DISCONNECT) {
                             close(clients[i].socketfd);
                             clients[i].isInUse = false;
@@ -197,17 +224,75 @@ void receiveAndSendRequests(fd_set *readFds) {
     
 }
 
+void roomJoinHandler() {
+
+}
+
+/**
+ * Function to create a room.
+ * Returns a message to the client whether the room is created or not.
+ * @param client client number
+ */
+void roomCreationHandler(int client) {
+    // initialising variables
+    char buffer[1024];
+    char createMessage[50];
+    uint16_t messageLength = 0;
+    uint16_t lengthOfBytes = 0;
+    int currentRoom;
+
+    // looping through the room array
+    for (currentRoom = 1; currentRoom < MAX_ROOM_SIZE; currentRoom++) {
+        // room is created
+        if (rooms[currentRoom].isInUse == false) {
+            rooms[currentRoom].isInUse = true;
+            rooms[currentRoom].roomID = currentRoom;
+            clients[client].roomID = currentRoom;
+            
+            messageLength = sprintf(createMessage, "Created Room %d", currentRoom);
+
+            lengthOfBytes = buildMessage(MSG, messageLength, createMessage, buffer);
+            send(clients[client].socketfd, buffer, lengthOfBytes, 0);
+
+            break;
+        }
+    }
+
+    // no room created
+    if (currentRoom == MAX_ROOM_SIZE) {
+        messageLength = sprintf(createMessage, "Maximum Room capacity reached");
+
+        lengthOfBytes = buildMessage(MSG, messageLength, createMessage, buffer);
+        send(clients[client].socketfd, buffer, lengthOfBytes, 0);
+    }
+}
+
+/**
+ * Handles server shut down when Ctrl+C is pressed
+ * Sends message to clients saying that the server shut down.
+ */
 void shutdownHandler(int sig) {
+    // disconnecting all clients that are in use
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i].isInUse) {
-            char buffer[HEADER_SIZE];
-            uint16_t messageSize = buildMessage(DISCONNECT, 0, NULL, buffer);
 
+            // disconnection message and buffer
+            char disconnectionMessage[] = "Server disconnected.";
+            char buffer[HEADER_SIZE + sizeof(disconnectionMessage)];
+
+            // sending disconnection message to clients
+            
+            uint16_t messageSize = buildMessage(MSG, strlen(disconnectionMessage), disconnectionMessage, buffer);
+            send(clients[i].socketfd, buffer, messageSize, 0);
+
+            // disconnecting the clients completely
+            messageSize = buildMessage(DISCONNECT, 0, NULL, buffer);
             send(clients[i].socketfd, buffer, messageSize, 0);
             close(clients[i].socketfd);
         }
     }
 
+    // shutting down server
     close(serverSocketFd);
     write(STDOUT_FILENO, "\nServer shut down.\n", 21);
     exit(1);

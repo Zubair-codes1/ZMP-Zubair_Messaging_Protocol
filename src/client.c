@@ -86,13 +86,31 @@ int main (int argc, char *argv[]) {
             char input[65535];
             fgets(input, sizeof(input), stdin);
             input[strcspn(input, "\n")] = 0;
-            messageLength = buildMessage(MSG, (uint16_t) strlen(input), input, buffer);
 
-            sendResult = send(serverFd, buffer, messageLength, 0);
-            if (sendResult == -1) {
-                perror("Error when sending.");
-                exit(1);
+            if (input[0] == '/') {
+                char *inputCopy = strdup(input);
+                char *messageType = strsep(&inputCopy, " ");
+
+                if (strcmp(messageType, "/join") == 0) {
+                    char *joinValue = "";
+                    joinValue = strsep(&inputCopy, " ");
+
+                    messageLength = buildMessage(JOIN, (uint16_t) strlen(joinValue), joinValue, buffer);
+                }else if (strcmp(messageType, "/create") == 0) {
+                    messageLength = buildMessage(CREATE, 0, NULL, buffer);
+                }
             }
+            else {
+                messageLength = buildMessage(MSG, (uint16_t) strlen(input), input, buffer);
+
+                sendResult = send(serverFd, buffer, messageLength, 0);
+                
+                if (sendResult == -1) {
+                    perror("Error when sending.");
+                    exit(1);
+                }
+            }
+            
         }
         if (FD_ISSET(serverFd, &readFds)) {
             // getting header from server

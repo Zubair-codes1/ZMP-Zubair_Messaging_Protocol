@@ -11,6 +11,8 @@
 #define DISCONNECT 0x03
 #define ACK 0x04
 #define ERROR 0x05
+#define CREATE 0x06
+#define JOIN 0x07
 
 struct MessageHeader {
     uint8_t messageType;
