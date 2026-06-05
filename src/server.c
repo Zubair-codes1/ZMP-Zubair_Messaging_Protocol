@@ -42,13 +42,21 @@ int serverSocketFd;
 
 // forward declarations for functions
 void initialiseServer();
+void runServer(int serverSocketFd);
 void acceptRequests(int serverSocketFd, fd_set *readFds);
 void receiveAndSendRequests(fd_set *readFds);
+void handleReceive(int currentClient, fd_set *readFds);
+void serverActions(int currentClient, char *buffer);
+void connectionHandler(int currentClient, char *buffer, uint16_t lengthOfBytes);
+void messageHandler(int currentClient, uint16_t lengthOfBytes, char *buffer);
+void roomJoinHandler(int client, char *buffer);
 void roomCreationHandler(int client);
 void shutdownHandler(int sig);
-void runServer(int serverSocketFd);
 
-// main - puts together all the server code
+/**
+ * Puts all the code together by initialising the server and 
+ * running it.
+ */
 int main () {
     // handling server shut down
     signal(SIGINT, shutdownHandler);
@@ -108,7 +116,11 @@ void initialiseServer() {
     }
 }
 
-// accepting, selecting and receiving messages
+/**
+ * Runs the server by accepting, receiving and sending requests from clients
+ * 
+ * @param serverSocketFd server socket fd.
+ */
 void runServer(int serverSocketFd)
 {
     // setting up the fds to listen to
@@ -144,7 +156,12 @@ void runServer(int serverSocketFd)
     
 }
 
-// accepting requests
+/**
+ * Accepts client requests to the server
+ * 
+ * @param serverSocketFd current server socket fd
+ * @param readFds fd set
+ */
 void acceptRequests(int serverSocketFd, fd_set *readFds) {
     // accepting client requests
     if (FD_ISSET(serverSocketFd, readFds)) {
@@ -174,58 +191,123 @@ void acceptRequests(int serverSocketFd, fd_set *readFds) {
     }
 }
 
-// handling requests based on type
+/**
+ * Loops through all clients and handles receiving and sending of packets for them
+ * 
+ * @param readFds fd set
+ */
 void receiveAndSendRequests(fd_set *readFds) {
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (clients[i].isInUse) {
-            if(FD_ISSET(clients[i].socketfd, readFds)){
-                char buffer[HEADER_SIZE + 65535];
-                int bytesReceived = recv(clients[i].socketfd, buffer, HEADER_SIZE, 0);
+    for (int currentClient = 0; currentClient < MAX_CLIENTS; currentClient++) {
+        handleReceive(currentClient, readFds);
+    }
+}
 
-                if (bytesReceived <= 0) {
-                    close(clients[i].socketfd);
-                    clients[i].isInUse = false;
-                }else {
-                    uint16_t lengthOfBytes;
-                    memcpy(&lengthOfBytes, buffer + 3, sizeof(uint16_t));
+/**
+ * Handling receiving functionality.
+ * Calls the serverActions method to respond to the clients message
+ * 
+ * @param currentClient current client interactive with server
+ * @param readFds fd set
+ */
+void handleReceive(int currentClient, fd_set *readFds) {
+    if (clients[currentClient].isInUse) {
+        if(FD_ISSET(clients[currentClient].socketfd, readFds)){
+            char buffer[HEADER_SIZE + 65535];
+            int bytesReceived = recv(clients[currentClient].socketfd, buffer, HEADER_SIZE, 0);
 
-                    int payloadBytes = recv(clients[i].socketfd, buffer + HEADER_SIZE, lengthOfBytes, 0);
-                    if (payloadBytes <= 0) {
-                        close(clients[i].socketfd);
-                        clients[i].isInUse = false;
-                        continue;
-                    }
-                    struct ParsedMessage parsedMessage = parseMessage(buffer);
-                    
-                    if (parsedMessage.checksumEqual) {
-                        if (parsedMessage.messageType == CONNECT) {
-                            memcpy(clients[i].username, buffer + HEADER_SIZE, lengthOfBytes);
-                        }else if (parsedMessage.messageType == MSG) {
-                            for (int j = 0; j < MAX_CLIENTS; j++) {
-                                if (clients[j].isInUse && j != i) {
-                                    send(clients[j].socketfd, buffer, HEADER_SIZE + lengthOfBytes, 0);
-                                }
-                            }
-                        }else if (parsedMessage.messageType == JOIN) {
-                            
-                        }else if (parsedMessage.messageType == CREATE) {
-                            roomCreationHandler(i);
-
-                        }else if (parsedMessage.messageType == DISCONNECT) {
-                            close(clients[i].socketfd);
-                            clients[i].isInUse = false;
-                        }
-                    }
-
-                }
+            if (bytesReceived <= 0) {
+                close(clients[currentClient].socketfd);
+                clients[currentClient].isInUse = false;
+            }else {
+                serverActions(currentClient, buffer);
             }
         }
     }
-    
 }
 
-void roomJoinHandler() {
+/**
+ * Function to control the servers actions after receiving a message
+ * @param currentClient current client in loop
+ * @param buffer buffer of data received from client
+ */
+void serverActions(int currentClient, char *buffer) {
+    uint16_t lengthOfBytes;
+    memcpy(&lengthOfBytes, buffer + 3, sizeof(uint16_t));
 
+    int payloadBytes = recv(clients[currentClient].socketfd, buffer + HEADER_SIZE, lengthOfBytes, 0);
+    if (payloadBytes <= 0) {
+        close(clients[currentClient].socketfd);
+        clients[currentClient].isInUse = false;
+        return;
+    }
+    struct ParsedMessage parsedMessage = parseMessage(buffer);
+    
+    if (parsedMessage.checksumEqual) {
+        if (parsedMessage.messageType == CONNECT) {
+            connectionHandler(currentClient, buffer, lengthOfBytes);
+        }else if (parsedMessage.messageType == MSG) {
+            messageHandler(currentClient, lengthOfBytes, buffer);
+        }else if (parsedMessage.messageType == JOIN) {
+            roomJoinHandler(currentClient, buffer);
+        }else if (parsedMessage.messageType == CREATE) {
+            roomCreationHandler(currentClient);
+        }else if (parsedMessage.messageType == DISCONNECT) {
+            close(clients[currentClient].socketfd);
+            clients[currentClient].isInUse = false;
+        }
+    }
+}
+
+/**
+ * Connection handler - sets the current clients username
+ * @param currentClient current client in loop
+ * @param buffer buffer of data
+ * @param lengthOfBytes length of bytes of the username
+ */
+void connectionHandler(int currentClient, char *buffer, uint16_t lengthOfBytes) {
+    memcpy(clients[currentClient].username, buffer + HEADER_SIZE, lengthOfBytes);
+}
+
+/**
+ * Handles sending messages to clients that are in use, not the same as the
+ * current client and are in the same room as the current client
+ * @param currentClient current client in loop
+ * @param lengthOfBytes length of bytes in message
+ * @param buffer buffer of the bytes being sent
+ */
+void messageHandler(int currentClient, uint16_t lengthOfBytes, char *buffer) {
+    for (int receivingClient = 0; receivingClient < MAX_CLIENTS; receivingClient++) {
+        if (clients[receivingClient].isInUse && receivingClient != currentClient && clients[receivingClient].roomID == clients[currentClient].roomID ) {
+            send(clients[receivingClient].socketfd, buffer, HEADER_SIZE + lengthOfBytes, 0);
+        }
+    }
+}
+
+/**
+ * Handles client joining a room.
+ * Returns a message saying whether they joined or not
+ * @param client client number
+ * @param buffer buffer pointer
+ */
+void roomJoinHandler(int client, char *buffer) {
+    uint8_t joinRoomID = (uint8_t) atoi(buffer + 5);
+    int lengthOfBytes;
+    char message[1024];
+    if (joinRoomID < MAX_ROOM_SIZE && joinRoomID > 0 && rooms[joinRoomID].isInUse == true) {
+        // moving client to new room
+        clients[client].roomID = joinRoomID;
+
+        // sending ACK message
+        lengthOfBytes = buildMessage(ACK, 0, NULL, buffer);
+        send(clients[client].socketfd, buffer, lengthOfBytes, 0);
+    } else {
+        // send error message
+
+        int messageLength = sprintf(message, "Could not join room %d", joinRoomID);
+
+        lengthOfBytes = buildMessage(ERROR, messageLength, message, buffer);
+        send(clients[client].socketfd, buffer, lengthOfBytes, 0);
+    }
 }
 
 /**
@@ -249,7 +331,7 @@ void roomCreationHandler(int client) {
             rooms[currentRoom].roomID = currentRoom;
             clients[client].roomID = currentRoom;
             
-            messageLength = sprintf(createMessage, "Created Room %d", currentRoom);
+            messageLength = sprintf(createMessage, "Server: Created Room %d", currentRoom);
 
             lengthOfBytes = buildMessage(MSG, messageLength, createMessage, buffer);
             send(clients[client].socketfd, buffer, lengthOfBytes, 0);
@@ -260,7 +342,7 @@ void roomCreationHandler(int client) {
 
     // no room created
     if (currentRoom == MAX_ROOM_SIZE) {
-        messageLength = sprintf(createMessage, "Maximum Room capacity reached");
+        messageLength = sprintf(createMessage, "Server: Maximum Room capacity reached. No room created.");
 
         lengthOfBytes = buildMessage(MSG, messageLength, createMessage, buffer);
         send(clients[client].socketfd, buffer, lengthOfBytes, 0);
