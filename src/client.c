@@ -143,7 +143,6 @@ int main (int argc, char *argv[]) {
             }else if (parsedMessage.messageType == ERROR) {
                 printf("%.*s\n", parsedMessage.lengthOfMessage, parsedMessage.payload);
             }else if (parsedMessage.messageType == DISCONNECT) {
-                printf("Server: Server disconnected.\n");
                 exit(1);
             }
 
