@@ -17,7 +17,7 @@ typedef struct {
     bool isInUse;
     int roomID;
     struct sockaddr_in address;
-} Client ;
+} Client;
 
 // holds information about rooms
 typedef struct {
@@ -71,6 +71,7 @@ int main () {
     // initialsing and running the server
     initialiseServer();
     runServer(serverSocketFd);
+    
     return 0;
 }
 
@@ -244,6 +245,7 @@ void serverActions(int currentClient, char *buffer) {
     }
     
     struct ParsedMessage parsedMessage = parseMessage(buffer);
+    parsedMessage.payload[parsedMessage.lengthOfMessage] = '\0';
     
     if (parsedMessage.checksumEqual) {
         if (parsedMessage.messageType == CONNECT) {
@@ -268,7 +270,12 @@ void serverActions(int currentClient, char *buffer) {
  * @param lengthOfBytes length of bytes of the username
  */
 void connectionHandler(int currentClient, char *buffer, uint16_t lengthOfBytes) {
+    if (lengthOfBytes < 0) {
+        perror("Empty username.");
+        exit(1);
+    }
     memcpy(clients[currentClient].username, buffer + HEADER_SIZE, lengthOfBytes);
+    clients[currentClient].username[lengthOfBytes] = '\0';
 }
 
 /**
@@ -279,9 +286,12 @@ void connectionHandler(int currentClient, char *buffer, uint16_t lengthOfBytes) 
  * @param buffer buffer of the bytes being sent
  */
 void messageHandler(int currentClient, uint16_t lengthOfBytes, char *buffer) {
+    char newBuffer[1050];
+    sprintf(newBuffer, "%s: %s", clients[currentClient].username, buffer + HEADER_SIZE);
+    uint16_t messageLength = buildMessage(MSG, lengthOfBytes + strlen(clients[currentClient].username) + 2, newBuffer, buffer);
     for (int receivingClient = 0; receivingClient < MAX_CLIENTS; receivingClient++) {
         if (clients[receivingClient].isInUse && receivingClient != currentClient && clients[receivingClient].roomID == clients[currentClient].roomID ) {
-            send(clients[receivingClient].socketfd, buffer, HEADER_SIZE + lengthOfBytes, 0);
+            send(clients[receivingClient].socketfd, buffer, messageLength, 0);
         }
     }
 }
@@ -321,7 +331,7 @@ void roomJoinHandler(int client, char *buffer) {
 void roomCreationHandler(int client) {
     // initialising variables
     char buffer[1024];
-    char createMessage[50];
+    char createMessage[1024];
     uint16_t messageLength = 0;
     uint16_t lengthOfBytes = 0;
     int currentRoom;

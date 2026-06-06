@@ -18,14 +18,14 @@ struct MessageHeader {
     uint8_t messageType;
     uint16_t lengthOfMessage;
     uint16_t checksum;
-};
+} __attribute__((packed));
 
 struct ParsedMessage {
     uint8_t messageType;
     uint16_t lengthOfMessage;
     char *payload;
     bool checksumEqual;
-};
+} __attribute__((packed));
 
 #define HEADER_SIZE sizeof(struct MessageHeader)
 
