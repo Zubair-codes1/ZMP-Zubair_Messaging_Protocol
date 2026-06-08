@@ -51,6 +51,7 @@ void connectionHandler(int currentClient, char *buffer, uint16_t lengthOfBytes);
 void messageHandler(int currentClient, uint16_t lengthOfBytes, char *buffer);
 void roomJoinHandler(int client, char *buffer);
 void roomCreationHandler(int client);
+void exitHandler(int currentClient);
 void shutdownHandler(int sig);
 
 /**
@@ -257,8 +258,7 @@ void serverActions(int currentClient, char *buffer) {
         }else if (parsedMessage.messageType == CREATE) {
             roomCreationHandler(currentClient);
         }else if (parsedMessage.messageType == DISCONNECT) {
-            close(clients[currentClient].socketfd);
-            clients[currentClient].isInUse = false;
+            exitHandler(currentClient);
         }
     }
 }
@@ -360,6 +360,28 @@ void roomCreationHandler(int client) {
         lengthOfBytes = buildMessage(MSG, messageLength, createMessage, buffer);
         send(clients[client].socketfd, buffer, lengthOfBytes, 0);
     }
+}
+
+
+/**
+ * Handles clients exiting the program
+ * 
+ * @param currentClient current client id
+ */
+void exitHandler(int currentClient) {
+    char createMessage[1024];
+    char buffer[1024];
+    uint16_t messageLength = 0;
+    uint16_t lengthOfBytes = 0;
+
+    // sending disconnect message
+    messageLength = sprintf(createMessage, "Server: You have exited the connection");
+    lengthOfBytes = buildMessage(DISCONNECT, messageLength, createMessage, buffer);
+    send(clients[currentClient].socketfd, buffer, lengthOfBytes, 0);
+
+    // closing client
+    close(clients[currentClient].socketfd);
+    clients[currentClient].isInUse = false;
 }
 
 /**

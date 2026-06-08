@@ -33,11 +33,12 @@ make
 ./client 127.0.0.1 Sam
 ```
 
-After this anything typed in and entered will be considered as a message that is sent to other clients except when the beginning character is / in which case that is considered as the client sending a command to the server. Currently there are only two main commands that a client can give to a server: '/create' and '/join'. '/create' will create a new room (only a maximum of 10 rooms including the starting room) and '/join <roomID>' will allow the client to join a specific room. The server will inform the client if the room has been created or not and whether they have joined the room respectively for each command.
+After this anything typed in and entered will be considered as a message that is sent to other clients except when the beginning character is / in which case that is considered as the client sending a command to the server. Currently there are only three main commands that a client can give to a server: '/create', '/join' and '/exit'. '/create' will create a new room (only a maximum of 10 rooms including the starting room) and '/join <roomID>' will allow the client to join a specific room. The server will inform the client if the room has been created or not and whether they have joined the room respectively for each command. The '/exit' command will make the client exit the connection.
 
 ```
 /create
 /join 1
+/exit
 ```
 
 To stop the program then run Ctrl+C in the server terminal.

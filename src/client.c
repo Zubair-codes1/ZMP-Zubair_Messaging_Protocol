@@ -101,6 +101,9 @@ int main (int argc, char *argv[]) {
                 }else if (strcmp(messageType, "/create") == 0) {
                     messageLength = buildMessage(CREATE, 0, NULL, buffer);
                     send(serverFd, buffer, messageLength, 0);
+                }else if (strcmp(messageType, "/exit") == 0) {
+                    messageLength = buildMessage(DISCONNECT, 0, NULL, buffer);
+                    send(serverFd, buffer, messageLength, 0);
                 }else {
                     printf("Error: Command starting with / does not exist.\n");
                 }
@@ -143,6 +146,7 @@ int main (int argc, char *argv[]) {
             }else if (parsedMessage.messageType == ERROR) {
                 printf("%.*s\n", parsedMessage.lengthOfMessage, parsedMessage.payload);
             }else if (parsedMessage.messageType == DISCONNECT) {
+                printf("%.*s\n", parsedMessage.lengthOfMessage, parsedMessage.payload);
                 exit(1);
             }
 
