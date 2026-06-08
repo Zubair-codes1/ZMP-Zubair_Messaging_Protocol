@@ -24,6 +24,7 @@ typedef struct {
     int roomID;
     bool isInUse;
     bool isEmpty;
+    int numberOfPeople;
 } Room;
 
 // max clients and backlog size constants
@@ -52,6 +53,7 @@ void messageHandler(int currentClient, uint16_t lengthOfBytes, char *buffer);
 void roomJoinHandler(int client, char *buffer);
 void roomCreationHandler(int client);
 void exitHandler(int currentClient);
+void roomClosure(int currentClient);
 void shutdownHandler(int sig);
 
 /**
@@ -220,6 +222,8 @@ void handleReceive(int currentClient, fd_set *readFds) {
             if (bytesReceived <= 0) {
                 close(clients[currentClient].socketfd);
                 clients[currentClient].isInUse = false;
+                rooms[clients[currentClient].roomID].numberOfPeople -= 1;
+                roomClosure(currentClient);
             }else {
                 serverActions(currentClient, buffer);
             }
@@ -306,16 +310,20 @@ void roomJoinHandler(int client, char *buffer) {
     uint8_t joinRoomID = (uint8_t) atoi(buffer + 5);
     int lengthOfBytes;
     char message[1024];
-    if (joinRoomID < MAX_ROOM_SIZE && rooms[joinRoomID].isInUse == true) {
+    int currentRoomID = clients[client].roomID;
+    if (joinRoomID < MAX_ROOM_SIZE && rooms[joinRoomID].isInUse == true && joinRoomID != currentRoomID) {
         // moving client to new room
+        rooms[currentRoomID].numberOfPeople -= 1;
+        roomClosure(client);
+
         clients[client].roomID = joinRoomID;
+        rooms[joinRoomID].numberOfPeople += 1;
 
         // sending ACK message
         lengthOfBytes = buildMessage(ACK, 0, NULL, buffer);
         send(clients[client].socketfd, buffer, lengthOfBytes, 0);
     } else {
         // send error message
-
         int messageLength = sprintf(message, "Could not join room %d", joinRoomID);
 
         lengthOfBytes = buildMessage(ERROR, messageLength, message, buffer);
@@ -334,27 +342,30 @@ void roomCreationHandler(int client) {
     char createMessage[1024];
     uint16_t messageLength = 0;
     uint16_t lengthOfBytes = 0;
-    int currentRoom;
+    bool roomCreated = false;
 
     // looping through the room array
-    for (currentRoom = 1; currentRoom < MAX_ROOM_SIZE; currentRoom++) {
+    for (int currentRoom = 1; currentRoom < MAX_ROOM_SIZE; currentRoom++) {
         // room is created
         if (rooms[currentRoom].isInUse == false) {
             rooms[currentRoom].isInUse = true;
             rooms[currentRoom].roomID = currentRoom;
+            rooms[currentRoom].numberOfPeople = 1;
             clients[client].roomID = currentRoom;
             
             messageLength = sprintf(createMessage, "Server: Created Room %d", currentRoom);
 
             lengthOfBytes = buildMessage(MSG, messageLength, createMessage, buffer);
             send(clients[client].socketfd, buffer, lengthOfBytes, 0);
+            
+            roomCreated = true;
 
             break;
         }
     }
 
     // no room created
-    if (currentRoom == MAX_ROOM_SIZE) {
+    if (roomCreated == false) {
         messageLength = sprintf(createMessage, "Server: Maximum Room capacity reached. No room created.");
 
         lengthOfBytes = buildMessage(MSG, messageLength, createMessage, buffer);
@@ -382,6 +393,29 @@ void exitHandler(int currentClient) {
     // closing client
     close(clients[currentClient].socketfd);
     clients[currentClient].isInUse = false;
+    rooms[clients[currentClient].roomID].numberOfPeople -= 1;
+    roomClosure(currentClient);
+}
+
+/**
+ * Closes a room if empty
+ * 
+ * @param currentClient current client id
+ */
+void roomClosure(int currentClient) {
+    int currentRoomID = clients[currentClient].roomID;
+    char buffer[1024];
+    char message[1024];
+    uint16_t lengthOfBytes;
+    if (rooms[currentRoomID].numberOfPeople == 0 && currentRoomID != 0) {
+        rooms[currentRoomID].isEmpty = true;
+        rooms[currentRoomID].isInUse = false;
+
+        int messageLength = sprintf(message, "Room %d deleted", clients[currentClient].roomID);
+
+        lengthOfBytes = buildMessage(MSG, messageLength, message, buffer);
+        send(clients[currentClient].socketfd, buffer, lengthOfBytes, 0);
+    }
 }
 
 /**
