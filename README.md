@@ -12,7 +12,8 @@ The ZMP consists of the following features;
 5. Graceful server shut down.
 6. Room Creation & Joining.
 7. Room based message sending.
-8. Maximum of 10 rooms including starting/global room.
+8. Collapsable rooms once user count reaches 0.
+9. Maximum of 10 rooms including starting/global room.
 
 ## **Requirements**
 
@@ -33,7 +34,7 @@ make
 ./client 127.0.0.1 Sam
 ```
 
-After this anything typed in and entered will be considered as a message that is sent to other clients except when the beginning character is / in which case that is considered as the client sending a command to the server. Currently there are only three main commands that a client can give to a server: '/create', '/join' and '/exit'. '/create' will create a new room (only a maximum of 10 rooms including the starting room) and '/join <roomID>' will allow the client to join a specific room. The server will inform the client if the room has been created or not and whether they have joined the room respectively for each command. The '/exit' command will make the client exit the connection.
+After this anything typed in and entered will be considered as a message that is sent to other clients except when the beginning character is / in which case that is considered as the client sending a command to the server. Currently there are only three main commands that a client can give to a server: '/create', '/join' and '/exit'. '/create' will create a new room (only a maximum of 10 rooms including the starting room) and the person who created the room will instantly join that room. '/join <roomID>' will allow the client to join a specific room. The server will inform the client if the room has been created or not and whether they have joined the room respectively for each command. The '/exit' command will make the client exit the connection.
 
 ```
 /create
@@ -46,8 +47,6 @@ To stop the program then run Ctrl+C in the server terminal.
 
 ## **Limitations and Improvements**
 
-1. Currently there are some bugs with how rooms operate such as when more than 10 are exceeded.
-2. The protocol does not have any system for checking people that join. It doesnt validate the users by checking their password before allowing them access to the server.
-3. The messages are not encrypted as they are sent across the server.
-4. Rooms are stil quite basic as they only have an ID and no name. They are also always active after they are created rather than being destroyed once empty.
-5. Clients still dont know who is sending what message as just he message is sent with no indication of who sent it.
+1. The protocol does not have any system for checking people that join. It doesnt validate the users by checking their password before allowing them access to the server.
+2. The messages are not encrypted as they are sent across the server.
+3. Rooms are stil quite basic as they only have an ID and no name.
